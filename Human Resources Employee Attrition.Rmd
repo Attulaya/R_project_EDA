@@ -1,0 +1,536 @@
+---
+title: "Human Resources Employee Attrition"
+author: "Attulaya"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+# Human Resources Employee Attrition
+
+## Introduction
+
+-   Employee attrition refers to the phenomenon of employees leaving an organization voluntarily or involuntarily.
+-   High turnover rate is huge issues for organisations.
+-   Predicting employee attrition can help organizations proactively identify and address factors that contribute to employee turnover.
+-   High cost of hiring, training and time-consuming for recruitment.
+-   Building a predictive model for employee attrition can provide valuable insights to optimize employee retention strategies.
+
+## Problem Statement
+
+-   Challenge in retaining current workforce
+
+## Aim and Objectives
+
+### Aim:
+
+-   To develop a machine learning algorithm for accuracte and efficient detection of employee attrition.
+
+### Objectives:
+
+-   To investigate the key features affect employee attrition.
+
+#### Let's look into what are all the installed libraries we have
+
+```{r}
+installed.packages()
+```
+
+#### Now we will look what are all the packages that are preloaded
+
+```{r}
+search()
+```
+
+#### let's load the packages
+
+```{r}
+library(pastecs)
+library(DataExplorer)
+```
+
+#### I will load the data into a variable
+
+```{r}
+data<-read.csv("WA_Fn-UseC_-HR-Employee-Attrition.csv")
+```
+
+#### first we find out what is the class of the data
+
+```{r}
+class(data)
+```
+
+we found that the variable data is a data frame hence it is easy for to operate on it or else we would have to convert it into a data frame first and then perform the operations
+
+#### lets take a look at the structure of data
+
+```{r}
+str(data)
+
+```
+
+#### now further moving lets get the summary of the current data before processing the data
+
+```{r}
+summary(data)
+```
+
+#### before manipulating the data let's have a look at the contents of the data frame by looking the head of the data frame and stats of the data
+
+```{r}
+head(data)
+stat.desc(data)
+dim(data)
+```
+
+### Data Pre-Processing
+
+#### creating a Function Check if a value is blank
+
+```{r}
+
+is.blank <- function(x) {
+  ifelse(is.na(x), TRUE, ifelse(is.character(x), trimws(x) == "", FALSE))
+}
+```
+
+Replace blank values with NA in the entire data frame
+
+```{r}
+data[data == ""] <- NA
+data[sapply(data, is.blank)] <- NA
+```
+
+#### now let's again look into the structure of data
+
+```{r}
+str(data)
+```
+
+#### Check duplicates based on id
+
+```{r}
+duplicates <- data[duplicated(data), ]
+print(duplicates)
+print(nrow(duplicates))
+```
+
+we find that there are no duplicate id's
+
+#### Drop irrelevant feature
+
+```{r}
+data <- subset(data, select = -c(EmployeeCount, EmployeeNumber, StandardHours, Over18))
+dim(data)
+
+
+```
+
+#### Lets's look at the Unique data
+
+```{r}
+data <- unique(data)
+dim(data)
+```
+
+as there is no duplicate data and the number of unique rows is also the same after applying the unique function
+
+### IN gender Replace "Male" with 1 and "Female" with 2
+
+```{r}
+data$Gender[data$Gender == "Male"] <- 1
+data$Gender[data$Gender == "Female"] <- 2
+```
+
+### Convert the 'Gender' column back to a factor with correct levels
+
+```{r}
+data$Gender <- factor(data$Gender, levels = c("1", "2"))
+```
+
+### Lets get to know the Count of single and Married employees
+
+```{r}
+marital_single <- sum(data$MaritalStatus == "Single", na.rm = TRUE)
+marital_married <-sum(data$MaritalStatus == "Married", na.rm = TRUE)
+cat("Single:", marital_single, "\nMarried:", marital_married)
+
+```
+
+
+#### factorizing the values of attrition column
+```{r}
+data$Attrition <- factor(data$Attrition)
+```
+
+
+####loading the summarytools library
+```{r}
+library(summarytools)
+```
+
+#### Check data types
+```{r}
+print(class(data$MaritalStatus))
+print(class(data$Attrition))
+```
+
+#### Check for missing values
+```{r}
+
+print(anyNA(data$MaritalStatus))
+print(anyNA(data$Attrition))
+```
+
+#### Update summarytools package
+```{r}
+
+install.packages("summarytools", dependencies = TRUE)
+```
+
+#### creating a contingency table
+```{r}
+
+contingency_table <- ctable(data$MaritalStatus, data$Attrition, digits = 2)
+```
+
+
+#### looking into the contingency table
+```{r}
+head(contingency_table)
+```
+
+####  loading the dplyr library
+
+```{r}
+library(dplyr)
+```
+
+
+#### looking into the structure and dimensions of the data after the changes are made
+```{r}
+str(data)
+```
+```{r}
+dim(data)
+```
+
+###### from the observation we see that the data is almost clean
+
+
+##### To further clarify let's plot and see if there is any missing data
+```{r}
+colSums(is.na(data))
+plot_missing(data)
+```
+
+## Replace missing values in numeric columns with mean using the ave function if it exists
+
+```{r}
+numeric_columns <- c("Age", "DailyRate", "HourlyRate", "MonthlyIncome", "MonthlyRate",
+                     "NumCompaniesWorked", "PercentSalaryHike", "YearsAtCompany",
+                     "YearsInCurrentRole", "YearsSinceLastPromotion", "YearsWithCurrManager",
+                     "TrainingTimesLastYear")
+for (col in numeric_columns) {
+  data[[col]] <- ifelse(is.na(data[[col]]),
+                      ave(data[[col]], FUN = function(x) mean(x, na.rm = TRUE)),
+                      data[[col]])
+}
+```
+
+
+##### Again let's have a look at the structure of data after making the changes
+```{r}
+str(data)
+```
+```{r}
+df<-data
+```
+
+
+### Let's perform a bivariate analysis for each and every column  with respect to Attrition
+```{r paged.print=FALSE}
+library(ggplot2)
+library(gridExtra)
+
+# Select numerical variables for bivariate analysis
+numerical_vars_bivariate <- c("Age", "DailyRate", "DistanceFromHome", "HourlyRate",
+                              "MonthlyIncome", "MonthlyRate", "NumCompaniesWorked",
+                              "PercentSalaryHike", "TotalWorkingYears", "TrainingTimesLastYear",
+                              "YearsAtCompany", "YearsInCurrentRole", "YearsSinceLastPromotion",
+                              "YearsWithCurrManager")
+
+# Calculate the number of rows and columns for the plot layout
+num_rows_num <- ceiling(length(numerical_vars_bivariate) / 4)
+num_cols_num <- min(length(numerical_vars_bivariate), 4)
+
+# Set the figure size
+options(repr.plot.width = 40, repr.plot.height = 20 * num_rows_num)
+
+# Create a list to store individual ggplot objects
+plot_list_num <- vector("list", length = length(numerical_vars_bivariate))
+
+# Create box plots for each numerical variable
+for (i in seq_along(numerical_vars_bivariate)) {
+  var <- numerical_vars_bivariate[i]
+  p <- ggplot(data = data, aes(x = factor(Attrition), y = .data[[var]], fill = factor(Attrition))) +
+    geom_boxplot() +
+    labs(title = paste("Attrition vs.", var), y = var) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "none")
+  
+  plot_list_num[[i]] <- p
+}
+
+# Display the plots using grid.arrange from the gridExtra package
+library(gridExtra)
+grid.arrange(grobs = plot_list_num, ncol = num_cols_num)
+```
+
+### lets create create some histograms to look the effects of other variables on attriation
+
+#### - Educational Field
+```{r}
+library(repr)
+options(repr.plot.width=10, repr.plot.height = 10) 
+  ggplot(data=data)+
+    geom_bar(aes(x=EducationField,color=Attrition,fill=Attrition))+
+    ggtitle("Field of Education vs Attrition ") + 
+    labs(x = "EducationField", y = "Count")
+
+```
+```{r}
+library(dplyr)
+data %>% 
+    select(Attrition,Gender,EducationField) %>%
+    filter (Attrition=="Yes") %>%
+    group_by(EducationField,Gender) %>% 
+    summarise(Count=n()) 
+  
+  attr_new <- data %>% 
+    select(Attrition,Gender,EducationField) %>%
+    filter (Attrition=="Yes") %>%
+    group_by(EducationField,Gender) %>% 
+    summarise(Count=n()) 
+
+  ggplot(data=attr_new,aes(x=EducationField,y = Count,color=Gender,fill=Gender))+
+    geom_bar(stat="identity", position=position_dodge())+
+    ggtitle("Field of Education vs Gender ")+
+  labs(x = "EducationField", y = "Count")
+```
+
+
+#### - Monthly Income
+```{r}
+data %>% 
+    summarise(Median = median(MonthlyIncome), 
+              Mean = mean(MonthlyIncome),
+              Max = max(MonthlyIncome), 
+              Min = min(MonthlyIncome))
+```
+```{r}
+ggplot(data, aes(x=Attrition, y=MonthlyIncome, color=Gender, fill=Gender)) +
+    geom_boxplot()
+```
+```{r}
+ggplot(data, aes(x=MonthlyIncome,color=Attrition,fill=Attrition)) +
+    geom_histogram(position="identity", alpha=0.7)+
+    ggtitle("Distribution of Monthly Income ")+
+    labs(x = "Monthly Income", y = "Count")
+```
+
+
+#### Relation between monthly income and overtime 
+```{r}
+ggplot(data, aes(x=OverTime, y=MonthlyIncome, color=Gender, fill=Gender)) +
+    geom_boxplot()
+```
+
+
+#### Relation between buisness travell and and years at company
+```{r}
+library(ggplot2)
+ggplot(data = data) + geom_boxplot(aes(x = factor(BusinessTravel), y = YearsAtCompany)) +
+xlab('YearsAtCompany') + labs(title = 'Distribution of hours by BusinessTravel')
+```
+
+
+#### Dempartment and years at company
+```{r}
+ggplot(data =data) + geom_boxplot(aes(x = factor(Department), y = YearsAtCompany))
+```
+
+
+#### Years since last promotion and years at company
+```{r}
+ggplot(data =data) + geom_point(aes(x = YearsSinceLastPromotion, y = YearsAtCompany))
+```
+
+
+### Normalizing the data to create a correlation matrix
+```{r}
+library(caret)
+library(dplyr)
+ds1 <- data %>% select (Department, EducationField, MaritalStatus, JobRole)
+ds2 <- data %>% select (-Department, -EducationField, -MaritalStatus, -JobRole)
+
+dmy <- dummyVars("~.", data=ds1)
+onehot <- data.frame(predict(dmy, newdata=ds1))
+head(onehot)
+
+```
+```{r}
+final <- cbind(onehot,ds2)
+```
+
+##### Have a look at structure of data
+```{r}
+str(final)
+```
+
+
+###Normalization
+```{r}
+library(caret)
+
+# Exclude non-numeric columns and the target variable
+numeric_cols <- final[, sapply(final, is.numeric) & !colnames(final) %in% "Attrition"]
+
+# Function to apply Min-Max scaling on the dataset
+min_max_scaling <- function(x) {
+  return((x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE)))
+}
+
+# Apply Min-Max scaling on the numerical variables
+normalized_data <- as.data.frame(lapply(numeric_cols, min_max_scaling))
+
+# Combine the normalized numerical variables with the target variable (Attrition)
+final_normalized <- cbind.data.frame(normalized_data, Attrition = final$Attrition)
+
+# Print the structure of the final normalized dataset
+str(final_normalized)
+
+```
+
+
+###### Renaming
+```{r}
+# Rename the 'final$Attrition' column to 'Attrition'
+colnames(final_normalized)[colnames(final_normalized) == "final$Attrition"] <- "Attrition"
+final_normalized$Attrition <- as.numeric(final_normalized$Attrition)
+```
+
+
+#### Plotting of correlation matrix
+```{r}
+library(reshape2)
+correlation_matrix <- cor(final_normalized)
+correlation_matrix
+ggplot(data = melt(correlation_matrix), aes(x = Var1, y = Var2, fill = value, label = round(value, ))) +
+  geom_tile() +
+  geom_text(color = "black", size = 2) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Correlation Matrix Heatmap")
+```
+
+
+#### Calculating the average age
+```{r}
+avg.age <- data %>% select(Gender, Age) %>% group_by(Gender) %>% summarize(avg=mean(Age))
+
+avg.age
+```
+
+
+
+#### Ploting the density distribution graph for age based on genders
+```{r}
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+
+options(repr.plot.width=8, repr.plot.height=6) 
+
+dat_text <- data.frame(
+  label = c("Mean = 37.33 \n Years Old", "Mean = 36.65 \n Years Old"),
+  Gender = c("Female", "Male")
+)
+
+# Example data
+set.seed(123)
+data <- data.frame(
+  Gender = sample(c("Male", "Female"), 100, replace = TRUE),
+  Age = rnorm(100, mean = 37, sd = 5)
+)
+
+gender.dist <- data %>% 
+  select(Gender, Age) %>% 
+  filter(Gender == 'Male' | Gender == "Female") %>% 
+  filter(!is.na(Age)) %>% 
+  group_by(Gender) %>% 
+  ggplot(aes(x=Age)) + 
+  geom_density(aes(fill=Gender), alpha=0.8, show.legend=FALSE) + 
+  facet_wrap(~Gender) + 
+  theme_minimal() + 
+  geom_vline(aes(xintercept=mean(Age)),
+             color="red", linetype="dashed", linewidth=1) + 
+  labs(title="Age Distribution") + 
+  theme(plot.title=element_text(hjust=0.5)) + 
+  scale_fill_manual(values=c("#F781F3", "#819FF7")) + 
+  geom_text(
+    data = dat_text,
+    mapping = aes(x = 45, y = 0.03, label = label),
+    hjust = -0.1,
+    vjust = -1
+  )
+
+overall.dist <- data %>% 
+  select(Gender, Age) %>% 
+  filter(!is.na(Age)) %>% 
+  ggplot(data=data, mapping=aes(x=Age)) + 
+  geom_density(color="darkblue", fill="lightblue") + 
+  geom_vline(aes(xintercept=mean(Age)),
+             color="red", linetype="dashed", linewidth=1) +  
+  theme_minimal() + 
+  labs(x="Overall Age") + 
+  annotate("text", label = "Mean = 36.92 Years Old", x = 50, y = 0.03, color = "black")
+
+plot_grid(gender.dist, overall.dist, nrow=2)
+
+
+```
+
+
+- The companies overall age groups almost follows the bell-curve stating that the company has well diversified employees in terms of age groups
+- The age of women who's age is more than the average age of women are more in number 
+- The age of men who's age is lesser than the average age of men are more in number 
+
+
+#### Gender and income relation 
+```{r}
+library(ggplot2)
+p <- ggplot(df, aes(x=Gender, y= MonthlyIncome, color=Gender, fill=Gender)) + geom_boxplot() + 
+scale_fill_manual(values=c("#F5A9F2", "#5882FA")) + scale_color_manual(values=c("#FE2EF7", "#5858FA")) +
+coord_flip() + labs(title="Are there any Gender Disparities in Income?")
+
+p
+```
+from the above graph we can see that there is a slight disparity in the income 
+
+
+#### Attrition in research and development department
+```{r}
+library(dplyr)
+r.d <- df %>% select(Department, WorkLifeBalance, Attrition) %>% 
+filter(Department == "Research & Development" & WorkLifeBalance == 1 | WorkLifeBalance == 2) %>%
+group_by(Attrition) %>% summarize(count=n())
+r.d
+```
+
+
+
+
+
